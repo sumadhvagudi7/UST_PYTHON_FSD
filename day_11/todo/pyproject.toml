@@ -1,0 +1,11 @@
+[project]
+name = "typer-todo"
+version = "0.1.0"
+description = "A simple todo CLI built with Typer"
+authors = [{ name = "asg", email = "asg@ust.com" }]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = ["typer[all]"]
+ 
+[project.scripts]
+todo = "todo.main:main"

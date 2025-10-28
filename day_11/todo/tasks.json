@@ -1,0 +1,26 @@
+[
+  {
+    "id": "b1c7f453-f02e-455a-97e9-7f6d02202156",
+    "description": "Complete 5 dsa problems",
+    "completed": true,
+    "created_at": "2025-10-23T08:44:07.566288"
+  },
+  {
+    "id": "7cf7e658-b0db-463a-a239-6ac02631c790",
+    "description": "Walk 10 mins a day in the morning",
+    "completed": false,
+    "created_at": "2025-10-23T09:30:53.640708"
+  },
+  {
+    "id": "27dc260a-9408-4a34-86df-c3212cb94e47",
+    "description": "Finish NLP Assessment",
+    "completed": true,
+    "created_at": "2025-10-24T09:27:41.880141"
+  },
+  {
+    "id": "a9a8d8b8-b94a-4702-a8a5-cb866062c71c",
+    "description": "Attend Hacker Rank Hackathon at 3.30pm",
+    "completed": false,
+    "created_at": "2025-10-24T09:32:35.109373"
+  }
+]

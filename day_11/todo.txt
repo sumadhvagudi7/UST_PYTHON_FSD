@@ -1,0 +1,348 @@
+# CLI TODO App (Python OOP)
+
+Project structure
+
+```
+todo_app/
+│
+├── main.py               # Entry point for the CLI app
+├── task.py               # Task class definition
+├── task_manager.py       # TaskManager class for managing tasks
+├── storage.py            # Handles saving/loading from a file
+├── tests/
+│   ├── __init__.py
+│   ├── test_task.py
+│   ├── test_task_manager.py
+│   └── test_storage.py
+└── tasks.json            # JSON file to persist tasks
+```
+
+---
+
+## `task.py`
+
+```python
+from dataclasses import dataclass, asdict
+from typing import Dict
+import datetime
+import uuid
+
+@dataclass
+class Task:
+    id: str
+    description: str
+    completed: bool = False
+    created_at: str = None
+
+    def __post_init__(self):
+        if self.created_at is None:
+            # ISO format timestamp
+            self.created_at = datetime.datetime.utcnow().isoformat()
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
+
+    @staticmethod
+    def from_dict(data: Dict) -> "Task":
+        return Task(
+            id=data["id"],
+            description=data["description"],
+            completed=data.get("completed", False),
+            created_at=data.get("created_at"),
+        )
+
+    @staticmethod
+    def create(description: str) -> "Task":
+        if not description or not description.strip():
+            raise ValueError("Description cannot be empty")
+        return Task(id=str(uuid.uuid4()), description=description.strip())
+```
+
+---
+
+## `storage.py`
+
+```python
+import json
+from typing import List, Dict
+
+class Storage:
+    def __init__(self, filename: str = "tasks.json"):
+        self.filename = filename
+
+    def save(self, tasks: List[Dict]) -> None:
+        with open(self.filename, "w", encoding="utf-8") as f:
+            json.dump(tasks, f, indent=2)
+
+    def load(self) -> List[Dict]:
+        try:
+            with open(self.filename, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return []
+        except json.JSONDecodeError:
+            # Corrupt file -> return empty list
+            return []
+```
+
+---
+
+## `task_manager.py`
+
+```python
+from typing import List, Optional
+from task import Task
+from storage import Storage
+
+class TaskManager:
+    def __init__(self, storage: Optional[Storage] = None):
+        self.storage = storage or Storage()
+        self.tasks: List[Task] = []
+        self._load()
+
+    def _load(self) -> None:
+        raw = self.storage.load()
+        self.tasks = [Task.from_dict(d) for d in raw]
+
+    def _save(self) -> None:
+        self.storage.save([t.to_dict() for t in self.tasks])
+
+    def add_task(self, description: str) -> Task:
+        task = Task.create(description)
+        self.tasks.append(task)
+        self._save()
+        return task
+
+    def get_all_tasks(self) -> List[Task]:
+        return list(self.tasks)
+
+    def find_task(self, task_id: str) -> Optional[Task]:
+        for t in self.tasks:
+            if t.id == task_id:
+                return t
+        return None
+
+    def mark_completed(self, task_id: str) -> bool:
+        task = self.find_task(task_id)
+        if not task:
+            return False
+        if not task.completed:
+            task.completed = True
+            self._save()
+        return True
+
+    def delete_task(self, task_id: str) -> bool:
+        task = self.find_task(task_id)
+        if not task:
+            return False
+        self.tasks.remove(task)
+        self._save()
+        return True
+```
+
+---
+
+## `main.py`
+
+```python
+"""Simple CLI for the TODO app"""
+from task_manager import TaskManager
+
+MENU = """
+Choose an option:
+1) Add task
+2) View tasks
+3) Mark task as completed
+4) Delete task
+5) Exit
+"""
+
+
+def print_tasks(tasks):
+    if not tasks:
+        print("No tasks found.")
+        return
+    for t in tasks:
+        status = "✔" if t.completed else "✖"
+        print(f"{t.id} | {status} | {t.description}")
+
+
+def run():
+    manager = TaskManager()
+    while True:
+        print(MENU)
+        choice = input("Enter choice: ").strip()
+        if choice == "1":
+            desc = input("Task description: ").strip()
+            try:
+                task = manager.add_task(desc)
+                print(f"Added task: {task.id}")
+            except ValueError as e:
+                print(f"Error: {e}")
+        elif choice == "2":
+            tasks = manager.get_all_tasks()
+            print_tasks(tasks)
+        elif choice == "3":
+            tid = input("Task ID to mark completed: ").strip()
+            ok = manager.mark_completed(tid)
+            print("Marked as completed." if ok else "Task not found.")
+        elif choice == "4":
+            tid = input("Task ID to delete: ").strip()
+            ok = manager.delete_task(tid)
+            print("Deleted." if ok else "Task not found.")
+        elif choice == "5":
+            print("Goodbye!")
+            break
+        else:
+            print("Invalid option.")
+
+
+if __name__ == "__main__":
+    run()
+```
+
+---
+
+## `tasks.json`
+
+Initial content:
+
+```json
+[]
+```
+
+---
+
+## Tests (`tests/test_task.py`)
+
+```python
+import unittest
+from task import Task
+
+class TestTask(unittest.TestCase):
+    def test_create_and_to_from_dict(self):
+        t = Task.create("my task")
+        d = t.to_dict()
+        self.assertIn("id", d)
+        self.assertEqual(d["description"], "my task")
+        t2 = Task.from_dict(d)
+        self.assertEqual(t.id, t2.id)
+        self.assertEqual(t.description, t2.description)
+
+    def test_empty_description_raises(self):
+        with self.assertRaises(ValueError):
+            Task.create("")
+```
+
+---
+
+## Tests (`tests/test_storage.py`)
+
+```python
+import unittest
+import tempfile
+import os
+from storage import Storage
+
+class TestStorage(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(delete=False)
+        self.filename = self.tmp.name
+        self.tmp.close()
+        # ensure file starts empty
+        with open(self.filename, 'w') as f:
+            f.write('[]')
+
+    def tearDown(self):
+        try:
+            os.unlink(self.filename)
+        except Exception:
+            pass
+
+    def test_save_and_load(self):
+        s = Storage(self.filename)
+        data = [{"id": "1", "description": "a"}]
+        s.save(data)
+        loaded = s.load()
+        self.assertEqual(loaded, data)
+```
+
+---
+
+## Tests (`tests/test_task_manager.py`)
+
+```python
+import unittest
+import tempfile
+import os
+from storage import Storage
+from task_manager import TaskManager
+
+class TestTaskManager(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(delete=False)
+        self.filename = self.tmp.name
+        self.tmp.close()
+        with open(self.filename, 'w') as f:
+            f.write('[]')
+        self.storage = Storage(self.filename)
+        self.manager = TaskManager(self.storage)
+
+    def tearDown(self):
+        try:
+            os.unlink(self.filename)
+        except Exception:
+            pass
+
+    def test_add_and_get(self):
+        t = self.manager.add_task("task1")
+        all_tasks = self.manager.get_all_tasks()
+        self.assertEqual(len(all_tasks), 1)
+        self.assertEqual(all_tasks[0].id, t.id)
+
+    def test_mark_completed(self):
+        t = self.manager.add_task("task2")
+        ok = self.manager.mark_completed(t.id)
+        self.assertTrue(ok)
+        self.assertTrue(self.manager.find_task(t.id).completed)
+
+    def test_delete(self):
+        t = self.manager.add_task("task3")
+        ok = self.manager.delete_task(t.id)
+        self.assertTrue(ok)
+        self.assertIsNone(self.manager.find_task(t.id))
+
+    def test_nonexistent_operations(self):
+        self.assertFalse(self.manager.mark_completed("no-id"))
+        self.assertFalse(self.manager.delete_task("no-id"))
+```
+
+---
+
+## How to run
+
+From the project root:
+
+* Run tests:
+
+```
+python -m unittest discover -s todo_app/tests
+```
+
+* Run CLI:
+
+```
+python todo_app/main.py
+```
+
+Python 3.8+ recommended.
+
+---
+
+If you want, I can also:
+
+* Convert this into a proper Python package (`setup.py` / `pyproject.toml`)
+* Add richer CLI using `argparse` or `click`
+* Add more advanced persistence (SQLite)
+
+Tell me which enhancement you want next.
