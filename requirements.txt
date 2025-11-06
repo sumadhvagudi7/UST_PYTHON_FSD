@@ -1,0 +1,7 @@
+--trusted-host pypi.org 
+--trusted-host pypi.python.org 
+--trusted-host files.pythonhosted.org
+
+panel==0.14.4
+matplotlib==3.7.2 
+ pip install jupyter_bokeh
